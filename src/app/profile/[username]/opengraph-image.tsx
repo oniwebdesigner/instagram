@@ -39,9 +39,9 @@ export default async function Image({
         avatar = `data:${type};base64,${b64}`;
       }
     }
-  } catch {
-    // nëse API-ja ose fotoja dështon, del version pa të dhëna shtesë
-  }
+  } catch (e) {
+  console.error("OG image error:", e);
+}
 
   return new ImageResponse(
     (
