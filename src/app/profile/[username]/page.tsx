@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 import { cache } from "react";
 import { getProfile, IgramError, type Profile } from "@/lib/igram";
 
+export const instant = false;
+
 type Props = {
   params: Promise<{ username: string }>;
 };
