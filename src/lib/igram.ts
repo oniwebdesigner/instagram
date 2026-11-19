@@ -142,13 +142,13 @@ async function requestApi(
   const url = buildUrl(path, username);
 
   const response = await fetch(url, {
-    method: "GET",
-    headers: {
-      [CONFIG.authHeader]: `${CONFIG.authPrefix}${key}`,
-      Accept: "application/json",
-    },
-    cache: "no-store",
-  });
+  method: "GET",
+  headers: {
+    [CONFIG.authHeader]: `${CONFIG.authPrefix}${key}`,
+    Accept: "application/json",
+  },
+      next: { revalidate: 300 },
+});
 
   if (response.status === 404 && optional) {
     return null;
@@ -465,24 +465,15 @@ export async function getProfile(
   }
 
   // Marrim profilin, postimet dhe Reels paralelisht.
+  // Postimet dhe Reels nuk e prishin profilin nëse dështojnë.
   const [profileResponse, postsResponse, reelsResponse] =
     await Promise.all([
-      requestApi(
-        CONFIG.profilePath,
-        cleanUsername,
-        key
+      requestApi(CONFIG.profilePath, cleanUsername, key),
+      requestApi(CONFIG.postsPath, cleanUsername, key, true).catch(
+        () => null
       ),
-      requestApi(
-        CONFIG.postsPath,
-        cleanUsername,
-        key,
-        true
-      ),
-      requestApi(
-        CONFIG.reelsPath,
-        cleanUsername,
-        key,
-        true
+      requestApi(CONFIG.reelsPath, cleanUsername, key, true).catch(
+        () => null
       ),
     ]);
 
