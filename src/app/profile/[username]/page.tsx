@@ -1,74 +1,60 @@
-
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getProfile, IgramError } from "@/lib/igram";
-
-
-export const instant = false;
+import { cache } from "react";
+import { getProfile, IgramError, type Profile } from "@/lib/igram";
 
 type Props = {
   params: Promise<{ username: string }>;
 };
 
-async function loadProfile(username: string) {
-  try {
-    return await getProfile(username);
-  } catch (error) {
-    if (error instanceof IgramError && error.status === 404) {
-      notFound();
-    }
+type Result =
+  | { ok: true; profile: Profile }
+  | { ok: false; status: number; message: string };
 
-    throw error;
+// cache() e bën thirrjen vetëm një herë për kërkesë (faqja + metadata)
+const loadProfile = cache(async (username: string): Promise<Result> => {
+  try {
+    return { ok: true, profile: await getProfile(username) };
+  } catch (error) {
+    if (error instanceof IgramError) {
+      return { ok: false, status: error.status, message: error.message };
+    }
+    console.error("loadProfile error:", error);
+    return {
+      ok: false,
+      status: 500,
+      message: "Gabim i papritur gjatë marrjes së profilit.",
+    };
   }
-}
+});
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { username } = await params;
+  const result = await loadProfile(username);
 
-  try {
-    const profile = await getProfile(username);
-
-    const title = `${profile.fullName || profile.username} (@${profile.username}) - Instagram Profile`;
-    const description =
-      profile.bio?.slice(0, 160) ||
-      `Shiko postimet publike të @${profile.username}.`;
-
-    return {
-      title,
-      description,
-      alternates: {
-        canonical: `/profile/${encodeURIComponent(profile.username)}`,
-      },
-      openGraph: {
-        title,
-        description,
-        type: "profile",
-        url: `/profile/${encodeURIComponent(profile.username)}`,
-        images: profile.avatar
-          ? [
-              {
-                url: profile.avatar,
-                width: 400,
-                height: 400,
-                alt: `Foto e profilit @${profile.username}`,
-              },
-            ]
-          : [],
-      },
-      twitter: {
-        card: "summary",
-        title,
-        description,
-        images: profile.avatar ? [profile.avatar] : [],
-      },
-    };
-  } catch {
+  if (!result.ok) {
     return {
       title: `Instagram Profile - @${username}`,
       description: `Shiko profilin publik të @${username}.`,
     };
   }
+
+  const { profile } = result;
+  const title = `${profile.fullName || profile.username} (@${profile.username}) - Instagram Profile`;
+  const description =
+    profile.bio?.slice(0, 160) ||
+    `Shiko postimet publike të @${profile.username}.`;
+  const path = `/profile/${encodeURIComponent(profile.username)}`;
+
+  // Pa "images": imazhin e merr nga opengraph-image.tsx
+  return {
+    title,
+    description,
+    alternates: { canonical: path },
+    openGraph: { title, description, type: "profile", url: path },
+    twitter: { card: "summary_large_image", title, description },
+  };
 }
 
 const fmt = (n: number | null) =>
@@ -81,7 +67,30 @@ const fmt = (n: number | null) =>
 
 export default async function ProfilePage({ params }: Props) {
   const { username } = await params;
-  const profile = await loadProfile(username);
+  const result = await loadProfile(username);
+
+  if (!result.ok && result.status === 404) notFound();
+
+  if (!result.ok) {
+    return (
+      <main className="mx-auto min-h-screen max-w-4xl px-5 py-12 text-neutral-900">
+        <Link
+          href="/"
+          className="mb-8 inline-block text-sm text-neutral-500 hover:text-neutral-900"
+        >
+          ← Kthehu te kërkimi
+        </Link>
+        <p
+          role="alert"
+          className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-800"
+        >
+          {result.message}
+        </p>
+      </main>
+    );
+  }
+
+  const { profile } = result;
 
   return (
     <main className="mx-auto min-h-screen max-w-4xl px-5 py-12 text-neutral-900">
