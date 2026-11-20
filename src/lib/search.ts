@@ -7,6 +7,16 @@ export type SearchUser = {
   isVerified: boolean;
 };
 
+export type SearchTag = {
+  name: string;
+  count: number | null;
+};
+
+export type SearchResult = {
+  users: SearchUser[];
+  hashtags: SearchTag[];
+};
+
 export class SearchError extends Error {
   constructor(
     message: string,
@@ -37,7 +47,13 @@ function get(obj: unknown, ...paths: string[]): unknown {
 
 const str = (v: unknown) => (typeof v === "string" ? v : v == null ? "" : String(v));
 
-export async function searchUsers(q: string): Promise<SearchUser[]> {
+function num(v: unknown): number | null {
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v))) return Number(v);
+  return null;
+}
+
+export async function search(q: string): Promise<SearchResult> {
   const key = process.env.IGRAM_API_KEY;
   if (!key) throw new SearchError("Mungon IGRAM_API_KEY në konfigurimin e serverit.", 500);
 
@@ -69,6 +85,7 @@ export async function searchUsers(q: string): Promise<SearchUser[]> {
     console.log("igramapi search response:", JSON.stringify(raw, null, 2).slice(0, 3000));
   }
 
+  // ---------- Profile ----------
   const list = get(
     raw,
     "users",
@@ -81,34 +98,72 @@ export async function searchUsers(q: string): Promise<SearchUser[]> {
     "data"
   );
 
-  const seen = new Set<string>();
+  const seenUsers = new Set<string>();
 
-  return (Array.isArray(list) ? list : [])
+  const users = (Array.isArray(list) ? list : [])
     .map((item): SearchUser | null => {
       const node = get(item, "user") ?? item;
       const username = str(get(node, "username", "user_name"));
-      if (!username) return null; // hashtag-et dhe vendet nuk kanë username
+      if (!username) return null;
 
       return {
         username,
         fullName: str(get(node, "full_name", "fullName", "name")),
         avatar: str(
-          get(
-            node,
-            "profile_picture_url",
-            "profile_pic_url",
-            "profile_pic_url_hd",
-            "avatar",
-            "picture"
-          )
+          get(node, "profile_picture_url", "profile_pic_url", "profile_pic_url_hd", "avatar", "picture")
         ),
         isVerified: get(node, "is_verified", "isVerified") === true,
       };
     })
     .filter((u): u is SearchUser => {
-      if (!u || seen.has(u.username)) return false;
-      seen.add(u.username);
+      if (!u || seenUsers.has(u.username)) return false;
+      seenUsers.add(u.username);
       return true;
     })
     .slice(0, 8);
+
+  // ---------- Hashtag-e ----------
+  const rawTags = get(
+    raw,
+    "hashtags",
+    "data.hashtags",
+    "results.hashtags",
+    "data.results.hashtags"
+  );
+
+  let tagItems: unknown[] = Array.isArray(rawTags) ? rawTags : [];
+
+  if (tagItems.length === 0 && Array.isArray(list)) {
+    tagItems = list.filter((item) => {
+      const t = str(get(item, "type", "kind")).toLowerCase();
+      return t.includes("hashtag") || get(item, "hashtag") !== undefined;
+    });
+  }
+
+  const seenTags = new Set<string>();
+
+  const hashtags = tagItems
+    .map((item): SearchTag | null => {
+      const inner = get(item, "hashtag");
+      const node = inner && typeof inner === "object" ? inner : item;
+      const name = (
+        str(get(node, "name", "tag", "hashtag", "title")) ||
+        (typeof inner === "string" ? inner : "")
+      ).replace(/^#/, "");
+
+      if (!name) return null;
+
+      return {
+        name,
+        count: num(get(node, "media_count", "post_count", "posts_count", "count")),
+      };
+    })
+    .filter((t): t is SearchTag => {
+      if (!t || seenTags.has(t.name.toLowerCase())) return false;
+      seenTags.add(t.name.toLowerCase());
+      return true;
+    })
+    .slice(0, 8);
+
+  return { users, hashtags };
 }

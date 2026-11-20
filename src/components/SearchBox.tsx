@@ -3,39 +3,54 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent, KeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
+import { toTag } from "@/lib/tag";
 
-type Suggestion = {
+type UserSuggestion = {
   username: string;
   fullName: string;
   avatar: string;
   isVerified: boolean;
 };
 
-const VALID = /^[A-Za-z0-9._]{1,30}$/;
+type TagSuggestion = { name: string; count: number | null };
+
+const VALID_USER = /^[A-Za-z0-9._]{1,30}$/;
+
+const fmt = (n: number | null) =>
+  n == null
+    ? ""
+    : new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(n);
 
 export default function SearchBox() {
   const router = useRouter();
   const boxRef = useRef<HTMLDivElement>(null);
 
   const [q, setQ] = useState("");
-  const [items, setItems] = useState<Suggestion[]>([]);
+  const [users, setUsers] = useState<UserSuggestion[]>([]);
+  const [tags, setTags] = useState<TagSuggestion[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [active, setActive] = useState(-1);
   const [error, setError] = useState<string | null>(null);
 
-  // Sugjerimet: presim 400 ms pasi ndalon së shkruari (kursen kreditet)
+  // "@username" kërkon profile; çdo gjë tjetër kërkon hashtag-e
+  const isUser = q.trimStart().startsWith("@");
+  const items = isUser ? users : tags;
+
   useEffect(() => {
-    const term = q.trim().replace(/^@/, "");
+    const raw = q.trim();
+    const term = raw.startsWith("@") ? raw.slice(1).trim() : toTag(raw);
 
     if ([...term].length < 2) {
-      setItems([]);
+      setUsers([]);
+      setTags([]);
       setError(null);
       return;
     }
 
     const ctrl = new AbortController();
 
+    // Presim 400 ms pasi ndalon së shkruari (kursen kreditet)
     const timer = setTimeout(async () => {
       setLoading(true);
       setError(null);
@@ -47,12 +62,14 @@ export default function SearchBox() {
         const json = await res.json();
         if (!res.ok) throw new Error(json.error ?? "Gabim.");
 
-        setItems(json.users ?? []);
+        setUsers(json.users ?? []);
+        setTags(json.hashtags ?? []);
         setActive(-1);
         setOpen(true);
       } catch (e) {
         if (ctrl.signal.aborted) return;
-        setItems([]);
+        setUsers([]);
+        setTags([]);
         setError(e instanceof Error ? e.message : "Gabim.");
         setOpen(true);
       } finally {
@@ -66,7 +83,6 @@ export default function SearchBox() {
     };
   }, [q]);
 
-  // Mbyll listën kur klikon jashtë
   useEffect(() => {
     function onClick(e: MouseEvent) {
       if (boxRef.current && !boxRef.current.contains(e.target as Node)) {
@@ -77,18 +93,32 @@ export default function SearchBox() {
     return () => document.removeEventListener("mousedown", onClick);
   }, []);
 
-  function go(username: string) {
+  function goUser(username: string) {
     setOpen(false);
     router.push(`/profile/${encodeURIComponent(username)}`);
   }
 
+  function goTag(name: string) {
+    setOpen(false);
+    router.push(`/tag/${encodeURIComponent(name.toLowerCase())}`);
+  }
+
   function submit(e: FormEvent) {
     e.preventDefault();
-    const term = q.trim().replace(/^@/, "");
+    const raw = q.trim();
 
-    if (active >= 0 && items[active]) return go(items[active].username);
-    if (VALID.test(term)) return go(term);
-    if (items[0]) return go(items[0].username);
+    if (raw.startsWith("@")) {
+      const name = raw.slice(1).trim();
+      if (active >= 0 && users[active]) return goUser(users[active].username);
+      if (VALID_USER.test(name)) return goUser(name);
+      if (users[0]) return goUser(users[0].username);
+      return;
+    }
+
+    if (active >= 0 && tags[active]) return goTag(tags[active].name);
+
+    const tag = toTag(raw);
+    if (tag) goTag(tag);
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLInputElement>) {
@@ -110,17 +140,18 @@ export default function SearchBox() {
     <div ref={boxRef} className="relative">
       <form onSubmit={submit} className="flex gap-2">
         <div className="flex flex-1 items-center rounded-lg border border-neutral-300 bg-white px-3 focus-within:border-neutral-900 focus-within:ring-2 focus-within:ring-neutral-900/10">
-          <span className="text-neutral-400">@</span>
+          <span className="text-neutral-400">{isUser ? "@" : "#"}</span>
           <input
-            value={q}
+            value={isUser ? q.trimStart().slice(1) : q.replace(/^#/, "")}
             onChange={(e) => {
-              setQ(e.target.value);
+              const v = e.target.value;
+              setQ(isUser ? "@" + v : v);
               setOpen(true);
             }}
             onFocus={() => setOpen(true)}
             onKeyDown={onKeyDown}
-            placeholder="username ose fjalë çelës (p.sh. cats 🐈)"
-            aria-label="Kërko profile në Instagram"
+            placeholder={isUser ? "username" : "cats, dogs, travel… (ose shkruaj @ për profile)"}
+            aria-label="Kërko hashtag ose profil"
             role="combobox"
             aria-expanded={Boolean(showList)}
             aria-controls="search-suggestions"
@@ -152,41 +183,57 @@ export default function SearchBox() {
           )}
 
           {!loading && !error && items.length === 0 && (
-            <li className="px-4 py-3 text-sm text-neutral-500">Nuk u gjet asnjë profil.</li>
+            <li className="px-4 py-3 text-sm text-neutral-500">
+              {isUser
+                ? "Nuk u gjet asnjë profil."
+                : "Asnjë sugjerim. Shtyp Enter për të kërkuar postime me këtë hashtag."}
+            </li>
           )}
 
-          {items.map((u, i) => (
-            <li key={u.username} role="option" aria-selected={i === active}>
-              <button
-                type="button"
-                onClick={() => go(u.username)}
-                onMouseEnter={() => setActive(i)}
-                className={`flex w-full items-center gap-3 px-4 py-2.5 text-left ${
-                  i === active ? "bg-neutral-100" : ""
-                }`}
-              >
-                {u.avatar ? (
-                  <img
-                    src={u.avatar}
-                    alt=""
-                    referrerPolicy="no-referrer"
-                    className="h-10 w-10 shrink-0 rounded-full bg-neutral-200 object-cover"
-                  />
-                ) : (
-                  <span className="h-10 w-10 shrink-0 rounded-full bg-neutral-200" />
-                )}
-                <span className="min-w-0">
-                  <span className="block truncate font-medium">
-                    {u.username}
-                    {u.isVerified && <span className="ml-1 text-sky-600">✓</span>}
-                  </span>
-                  {u.fullName && (
-                    <span className="block truncate text-sm text-neutral-500">{u.fullName}</span>
-                  )}
-                </span>
-              </button>
-            </li>
-          ))}
+          {isUser
+            ? users.map((u, i) => (
+                <li key={u.username} role="option" aria-selected={i === active}>
+                  <button
+                    type="button"
+                    onClick={() => goUser(u.username)}
+                    onMouseEnter={() => setActive(i)}
+                    className={`flex w-full items-center gap-3 px-4 py-2.5 text-left ${
+                      i === active ? "bg-neutral-100" : ""
+                    }`}
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate font-medium">
+                        @{u.username}
+                        {u.isVerified && <span className="ml-1 text-sky-600">✓</span>}
+                      </span>
+                      {u.fullName && (
+                        <span className="block truncate text-sm text-neutral-500">
+                          {u.fullName}
+                        </span>
+                      )}
+                    </span>
+                  </button>
+                </li>
+              ))
+            : tags.map((t, i) => (
+                <li key={t.name} role="option" aria-selected={i === active}>
+                  <button
+                    type="button"
+                    onClick={() => goTag(t.name)}
+                    onMouseEnter={() => setActive(i)}
+                    className={`flex w-full items-baseline justify-between gap-3 px-4 py-2.5 text-left ${
+                      i === active ? "bg-neutral-100" : ""
+                    }`}
+                  >
+                    <span className="truncate font-medium">#{t.name}</span>
+                    {t.count != null && (
+                      <span className="shrink-0 text-sm text-neutral-500">
+                        {fmt(t.count)} postime
+                      </span>
+                    )}
+                  </button>
+                </li>
+              ))}
         </ul>
       )}
     </div>
