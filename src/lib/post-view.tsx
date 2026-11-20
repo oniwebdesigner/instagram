@@ -65,17 +65,11 @@ export async function postMetadata(
   const cover = `/api/media/${encodeURIComponent(username)}/${encodeURIComponent(
     shortcode
   )}?kind=cover`;
-
-  return {
+   return {
     title,
     description,
-    openGraph: { title, description, type: "website", images: [{ url: cover }] },
-    twitter: {
-      card: "summary_large_image",
-      title,
-      description,
-      images: [cover],
-    },
+    openGraph: { title, description, type: "website" },
+    twitter: { card: "summary_large_image", title, description },
   };
 }
 
