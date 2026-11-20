@@ -1,6 +1,7 @@
 ﻿import type { Metadata } from "next";
 import Link from "next/link";
 import { cache } from "react";
+import { connection } from "next/server";
 import SearchBox from "@/components/SearchBox";
 import TagGrid from "@/components/TagGrid";
 import { getHashtagPosts, HashtagError, type TagPost } from "@/lib/hashtag";
@@ -9,14 +10,14 @@ import { toTag } from "@/lib/tag";
 export const instant = false;
 
 type Props = {
-  params: Promise<{ tag: string }>;
+  params: Promise<{ keyword: string }>;
 };
 
 type Result =
   | { ok: true; posts: TagPost[] }
   | { ok: false; message: string };
 
-function cleanTag(raw: string): string {
+function cleanKeyword(raw: string): string {
   let decoded = raw;
   try {
     decoded = decodeURIComponent(raw);
@@ -26,33 +27,34 @@ function cleanTag(raw: string): string {
   return toTag(decoded);
 }
 
-const load = cache(async (tag: string): Promise<Result> => {
+const load = cache(async (keyword: string): Promise<Result> => {
   try {
-    const posts = await getHashtagPosts(tag);
+    const posts = await getHashtagPosts(keyword);
     if (posts.length === 0) {
-      return { ok: false, message: `Nuk u gjetën postime për #${tag}.` };
+      return { ok: false, message: `Nuk u gjet asnjë video apo foto për “${keyword}”.` };
     }
     return { ok: true, posts };
   } catch (error) {
     if (error instanceof HashtagError) return { ok: false, message: error.message };
-    console.error("tag page error:", error);
-    return { ok: false, message: "Gabim i papritur gjatë marrjes së postimeve." };
+    console.error("explore page error:", error);
+    return { ok: false, message: "Gabim i papritur gjatë marrjes së përmbajtjes." };
   }
 });
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { tag } = await params;
-  const clean = cleanTag(tag);
+  const { keyword } = await params;
+  const clean = cleanKeyword(keyword);
 
   return {
-    title: `#${clean} - Postime në Instagram`,
-    description: `Postime dhe video të popullarizuara me #${clean}.`,
+    title: `${clean} - Video dhe foto`,
+    description: `Video dhe foto të rastësishme për “${clean}”.`,
   };
 }
 
-export default async function TagPage({ params }: Props) {
-  const { tag } = await params;
-  const clean = cleanTag(tag);
+export default async function ExplorePage({ params }: Props) {
+  const { keyword } = await params;
+  const clean = cleanKeyword(keyword);
+  await connection();
   const result = clean ? await load(clean) : null;
 
   return (
@@ -64,9 +66,9 @@ export default async function TagPage({ params }: Props) {
         ← Kthehu te kërkimi
       </Link>
 
-      <h1 className="text-3xl font-semibold tracking-tight">#{clean || "hashtag"}</h1>
+      <h1 className="text-3xl font-semibold tracking-tight">{clean || "Kërko"}</h1>
       <p className="mt-2 text-neutral-600">
-        Postime dhe video të popullarizuara. Shtyp “Përziej” për një rend tjetër.
+        Video dhe foto të rastësishme. Shtyp “Përziej” për të parë të tjera.
       </p>
 
       <div className="mt-6 mb-8">
@@ -78,7 +80,7 @@ export default async function TagPage({ params }: Props) {
           role="alert"
           className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-800"
         >
-          {result ? result.message : "Shkruaj një hashtag të vlefshëm."}
+          {result ? result.message : "Shkruaj një fjalë për të kërkuar."}
         </p>
       ) : (
         <TagGrid posts={result.posts} />
@@ -86,3 +88,4 @@ export default async function TagPage({ params }: Props) {
     </main>
   );
 }
+

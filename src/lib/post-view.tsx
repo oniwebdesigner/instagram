@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cache } from "react";
+import { findPostDeep } from "@/lib/feed";
 import {
   getProfile,
   IgramError,
@@ -23,7 +24,7 @@ export const loadPost = cache(
       const post =
         profile.posts.find(
           (p) => p.shortcode === shortcode || p.id === shortcode
-        ) ?? null;
+        ) ?? (await findPostDeep(username, shortcode));
       return { ok: true, profile, post };
     } catch (error) {
       if (error instanceof IgramError) {
@@ -199,3 +200,4 @@ export async function PostView({
     </Shell>
   );
 }
+

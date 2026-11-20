@@ -55,7 +55,7 @@ function num(v: unknown): number | null {
 
 export async function search(q: string): Promise<SearchResult> {
   const key = process.env.IGRAM_API_KEY;
-  if (!key) throw new SearchError("Mungon IGRAM_API_KEY në konfigurimin e serverit.", 500);
+  if (!key) throw new SearchError("IGRAM_API_KEY is missing from the server configuration.", 500);
 
   const url = new URL("/v1/search", BASE);
   url.searchParams.set(PARAM, q);
@@ -70,13 +70,13 @@ export async function search(q: string): Promise<SearchResult> {
     console.error("igramapi search error:", res.status, body.slice(0, 500));
 
     if (body.includes("quota_exceeded")) {
-      throw new SearchError("Kreditet e API-t kanë mbaruar.", 429);
+      throw new SearchError("API credits have run out.", 429);
     }
-    if (res.status === 429) throw new SearchError("Shumë kërkesa. Provo pas pak.", 429);
+    if (res.status === 429) throw new SearchError("Too many requests. Try again shortly.", 429);
     if (res.status === 401 || res.status === 403) {
-      throw new SearchError("API key nuk pranohet.", 502);
+      throw new SearchError("The API key was rejected.", 502);
     }
-    throw new SearchError(`Kërkimi dështoi (${res.status}).`, 502);
+    throw new SearchError(`Search failed (${res.status}).`, 502);
   }
 
   const raw = await res.json();
@@ -120,7 +120,7 @@ export async function search(q: string): Promise<SearchResult> {
       seenUsers.add(u.username);
       return true;
     })
-    .slice(0, 8);
+    .slice(0, 30);
 
   // ---------- Hashtag-e ----------
   const rawTags = get(
@@ -163,7 +163,9 @@ export async function search(q: string): Promise<SearchResult> {
       seenTags.add(t.name.toLowerCase());
       return true;
     })
-    .slice(0, 8);
+    .slice(0, 30);
 
   return { users, hashtags };
 }
+
+

@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
     .replace(/^[@#]/, "")
     .slice(0, 50);
 
-  // [...q] numëron emoji-t si një karakter
+  // [...q] counts an emoji as one character
   if ([...q].length < 2) return NextResponse.json({ users: [], hashtags: [] });
 
   const key = q.toLowerCase();
@@ -26,6 +26,6 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: e.message }, { status: e.status });
     }
     console.error("search route error:", e);
-    return NextResponse.json({ error: "Gabim i papritur." }, { status: 500 });
+    return NextResponse.json({ error: "Unexpected error." }, { status: 500 });
   }
 }

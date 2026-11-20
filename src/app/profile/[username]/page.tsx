@@ -1,7 +1,8 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cache } from "react";
+import ProfileFeed from "@/components/ProfileFeed";
 import { getProfile, IgramError, type Profile } from "@/lib/igram";
 
 export const instant = false;
@@ -14,7 +15,7 @@ type Result =
   | { ok: true; profile: Profile }
   | { ok: false; status: number; message: string };
 
-// cache() e bën thirrjen vetëm një herë për kërkesë (faqja + metadata)
+// cache() => një thirrje e vetme për kërkesë (faqja + metadata)
 const loadProfile = cache(async (username: string): Promise<Result> => {
   try {
     return { ok: true, profile: await getProfile(username) };
@@ -120,18 +121,14 @@ export default async function ProfilePage({ params }: Props) {
           <div className="min-w-0">
             <h1 className="text-xl font-semibold">
               {profile.fullName || profile.username}
-              {profile.isVerified && (
-                <span className="ml-1 text-sky-600">✓</span>
-              )}
+              {profile.isVerified && <span className="ml-1 text-sky-600">✓</span>}
             </h1>
             <p className="text-neutral-500">@{profile.username}</p>
           </div>
         </header>
 
         {profile.bio && (
-          <p className="mt-4 whitespace-pre-line text-neutral-700">
-            {profile.bio}
-          </p>
+          <p className="mt-4 whitespace-pre-line text-neutral-700">{profile.bio}</p>
         )}
 
         <dl className="mt-5 grid grid-cols-3 divide-x divide-neutral-200 rounded-lg border border-neutral-200 text-center">
@@ -141,9 +138,7 @@ export default async function ProfilePage({ params }: Props) {
             ["Ndjek", profile.following],
           ].map(([label, value]) => (
             <div key={label as string} className="py-3">
-              <dd className="text-lg font-semibold">
-                {fmt(value as number | null)}
-              </dd>
+              <dd className="text-lg font-semibold">{fmt(value as number | null)}</dd>
               <dt className="text-sm text-neutral-500">{label}</dt>
             </div>
           ))}
@@ -155,50 +150,13 @@ export default async function ProfilePage({ params }: Props) {
           Ky profil është privat. Mund të shihen vetëm profilet publike.
         </p>
       ) : profile.posts.length === 0 ? (
-        <p className="mt-10 text-neutral-600">
-          Nuk u gjetën postime për këtë profil.
-        </p>
+        <p className="mt-10 text-neutral-600">Nuk u gjetën postime për këtë profil.</p>
       ) : (
-        <section className="mt-10">
-          <h2 className="mb-4 text-lg font-semibold">Postimet</h2>
-
-          <div className="grid grid-cols-3 gap-1.5 sm:gap-3">
-            {profile.posts.map((post) => {
-              const href = post.isVideo
-                ? `/reel/${encodeURIComponent(profile.username)}/${post.shortcode}`
-                : `/p/${encodeURIComponent(profile.username)}/${post.shortcode}`;
-
-              return (
-                <Link
-                  key={post.id}
-                  href={href}
-                  className="group relative aspect-square overflow-hidden rounded-sm bg-neutral-200"
-                >
-                  {post.thumb && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={post.thumb}
-                      alt={post.caption || "Postim në Instagram"}
-                      referrerPolicy="no-referrer"
-                      loading="lazy"
-                      className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
-                    />
-                  )}
-
-                  {post.isVideo && (
-                    <span className="absolute right-2 top-2 rounded bg-black/70 px-2 py-1 text-xs text-white">
-                      Reel / Video
-                    </span>
-                  )}
-
-                  <span className="absolute inset-0 flex items-center justify-center bg-black/40 text-sm font-medium text-white opacity-0 transition group-hover:opacity-100">
-                    Shiko postimin
-                  </span>
-                </Link>
-              );
-            })}
-          </div>
-        </section>
+        <ProfileFeed
+          username={profile.username}
+          initialPosts={profile.posts}
+          total={profile.postsCount}
+        />
       )}
     </main>
   );

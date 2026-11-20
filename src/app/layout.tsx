@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -15,10 +15,10 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL("https://instagram-kappa-seven.vercel.app"),
   title: "Instagram Profile Viewer",
-  description: "Shiko profile publike të Instagramit pa u kyçur.",
+  description: "View public Instagram profiles without logging in.",
   openGraph: {
     title: "Instagram Profile Viewer",
-    description: "Shiko profile publike të Instagramit pa u kyçur.",
+    description: "View public Instagram profiles without logging in.",
     type: "website",
   },
 };
@@ -26,7 +26,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
-      lang="sq"
+      lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>

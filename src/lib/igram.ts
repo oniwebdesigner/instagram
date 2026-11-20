@@ -1,4 +1,4 @@
-
+﻿
 // lib/igramapi.ts
 // Server-only: mos e importo këtë file në Client Components.
 
@@ -37,7 +37,7 @@ export type Profile = {
   posts: Post[];
 };
 
-const CONFIG = {
+export const CONFIG = {
   base: process.env.IGRAM_API_BASE ?? "https://api.igramapi.com",
   profilePath:
     process.env.IGRAM_PROFILE_PATH ?? "/v1/profiles/{username}",
@@ -319,7 +319,7 @@ function normalizePost(
 // Normalize list of posts / reels
 // --------------------------------------------------
 
-function normalizePostList(
+export function normalizePostList(
   response: unknown,
   source: "posts" | "reels"
 ): Post[] {
@@ -528,3 +528,4 @@ function mockProfile(username: string): Profile {
     posts,
   };
 }
+
